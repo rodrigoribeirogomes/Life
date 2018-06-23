@@ -25,7 +25,13 @@ class Cell:
 		self.LifeCycle();
 		
 	def input(self):
-		i = self.env.getNext( self.pos['x'], self.pos['y'], 1 );
+		if self.respiration == 0:
+			maxTries = self.life;
+			
+		else:
+			maxTries = self.life % self.respiration + 1
+	
+		i = self.env.getNext( self.pos['x'], self.pos['y'], 1, maxTries = maxTries );
 		return i;
 		
 	def output(self, s):
@@ -49,12 +55,13 @@ class Cell:
 		
 		
 	def produce(self, predator):
+		
+		if type(predator) == Cell:
+			self.env.addCell(name = 'Air');
+	
 		return self.life * 0.2;
 		
 	def move(self, x = None, y = None):
-	
-		if self.life <= self.respiration * 0.10:
-			return;
 	
 		randomPos = self.env.randomPos(x,y);
 		x = randomPos['x'];
@@ -74,7 +81,14 @@ class Cell:
 		
 		if NewPos:
 			self.pos = NewPos;
-		
+	
+	
+	def __die(self):
+		CurrentPos = self.pos;
+		currx = self.pos['x'];
+		curry = self.pos['y'];
+		self.env.transform( currx, curry, None, force = True );
+		self.died = True;
 		
 		
 	def LifeCycle(self):
@@ -126,11 +140,11 @@ class Cell:
 				if self.respiration % 10 == 0 and food <= 0:
 					self.move();
 				
-				time.sleep(1);
+				time.sleep(0.1);
 				
 		except BaseException as e:
 			self.ex = traceback.format_exc();
-			self.died = True;
+			self.__die();
 			return;
 			
 			

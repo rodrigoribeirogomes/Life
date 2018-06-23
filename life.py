@@ -10,19 +10,29 @@ c = e.addCell();
 c = e.addCell();
 c = e.addCell();
 c = e.addCell(name = 'Air');
-c = e.addCell(name = 'Venen');
+#c = e.addCell(name = 'Venen');
 
+
+def PrintCell(c):
+	pass;
+	#print( c, 'Life:',  c.life, 'Actions:', c.actions, 'p:', c.pos['x'],c.pos['y'] );
 
 
 
 while True:
 	lives  = e.getCells(live = True);
-	
+	dieds  = e.getCells(live = False);
 	
 	print(  god.PrintEnv(e) );
 	
+	print('lives:', len(lives))
 	for c in lives:
-		print(c, 'Life:', c.life, 'Actions:', c.actions);
+		PrintCell(c);
+	
+	print('dieds:', len(dieds));
+	for d in dieds:
+		PrintCell(d);
+	
 	
 	time.sleep(1);
 	

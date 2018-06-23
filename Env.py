@@ -161,12 +161,17 @@ class Env:
 			
 
 		NewCell = CellClass(self, bornPos);
-		NewCell.pos = self.transform(  bornPos['x'], bornPos['y'], NewCell  );
+		NewPos = self.transform(  bornPos['x'], bornPos['y'], NewCell  );
+		
+		if NewPos:
+			NewCell.pos = NewPos;
+			self.cells += [NewCell];
+			return NewCell;
+		else:
+			return None;
 		
 		
-		self.cells += [NewCell];
-		
-		return NewCell;
+
 		
 	def getCells(self, **options):
 		live = options.get('live');
@@ -181,7 +186,7 @@ class Env:
 	
 		
 	#Get in some direction!
-	def getNext(self, x, y, count = 1):
+	def getNext(self, x, y, count = 1, maxTries = -1):
 		got = [];
 		tryCount 	= 0;
 		directions	= [(1,0),(-1,0),(0,1),(0,-1),(1,1),(-1,-1),(-1,1),(1,-1)]
@@ -193,6 +198,9 @@ class Env:
 		
 			Size = self.GetEnvSize();
 			Total = Size['x'] * Size['y'];
+			
+			if maxTries == -1:
+				maxTries = Total;
 			
 			#Have directions in current round?
 			if not CurrentDirections:
@@ -210,7 +218,7 @@ class Env:
 			CurrentX = x + xNext;
 			CurrentY = y + yNext;
 			
-			if tryCount > Total:
+			if tryCount > Total or tryCount >= maxTries:
 				break;
 			
 			if CurrentX < 0:
