@@ -16,10 +16,17 @@ def PrintEnv(env):
 		for x in Matrix[CurrentY]:
 			c = '';
 			
+
 			if x is None:
-				c = 'X'
+				c = '--- '
+			elif hasattr(x, 'iscell'):
+				if x.died:
+					c = ' :X '
+				else:
+					c = str(x)[:3]+' '
 			else:
-				c = str(x)[0]
+				c = ('---' + str(x))[-3:] + ' '
+				#c = '.   '
 			
 			FullMatrix[CurrentY] += c;
 		

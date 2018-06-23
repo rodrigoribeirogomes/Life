@@ -1,5 +1,8 @@
 # This is env!
 import random
+import cell
+from operator import xor
+import traceback
 
 def expandList(l, newSize, default = None):
 	current = len(l);
@@ -25,23 +28,34 @@ class Matrix:
 		self.__matrix = [] * 0;
 		self.__size = {'x':0, 'y':0};
 		
-	#Nothing creates, nothing destroyes, all transforms!
-	def  transform(self, x = None, y = None, e = None, **options):
+	#Get a random position on env...
+	def randomPos(self, x = None, y = None):
 	
 		if x is None:
-			x = random.randint(0,  self.__size['x'] );
+			x = random.randint(0,  self.__size['x'] )
 			
 		if y is None:
-			y = random.randint(0,  self.__size['y'] );
-	
-		if y < 0 or x < 0:
-			return;
+			y = random.randint(0,  self.__size['y'] )
 			
 		if x > self.__size['x']:
 			self.__size['x'] = x;
 			
 		if y > self.__size['y']:
 			self.__size['y'] = y;
+		
+		return {
+			'x':x ,'y':y
+		}
+		
+	#Nothing creates, nothing destroyes, all transforms!
+	def  transform(self, x = None, y = None, e = None, **options):
+	
+		randomPos = self.randomPos(x, y);
+		x = randomPos['x']
+		y = randomPos['y']
+	
+		if y < 0 or x < 0:
+			return;
 
 		#Expands if need..
 		expandList(self.__matrix, self.__size['y']);
@@ -59,6 +73,8 @@ class Matrix:
 		#Get the specified slot!
 		YSlot = self.__matrix[y];
 		YSlot[x] = e;
+		
+
 		
 		return {'x':x,'y':y,'e':e};
 
@@ -80,12 +96,23 @@ class Env:
 	def __init__(self, x = 0, y = 0, e = None):
 		self.__env = Matrix();
 		self.__env.transform(x, y, e,default = e);
+		self.cells = [];
 		
 	def exclude(self, x, y):
 		self.__env.transform(x,y, None);
 		
-	def transform(self, x = None, y = None, e = None):
-		return self.__env.transform(x,y,e);
+	def randomPos(self, x, y):
+		return self.__env.randomPos(x,y);
+		
+	def transform(self, x = None, y = None, e = None, force = False):
+		pos = self.__env.randomPos(x,y);
+		c = self.__env.get(pos['x'],pos['y']);
+		
+		if isinstance(c, cell.Cell) and not force:
+			return None;
+			
+		
+		return self.__env.transform(pos['x'],pos['y'],e);
 		
 	def GetMatrix(self):
 		return self.__env;
@@ -113,10 +140,44 @@ class Env:
 		size = self.GetEnvSize();
 		
 		if x is None:
-			x = random.choice(  )
+			x = random.choice()
 	
 		return self.transform(x, y, p);
 	
+	
+	def addCell(self,x = None, y = None, name = 'Cell'):
+		bornPos = self.transform( e = None, x = x, y  = y );
+		
+		if not bornPos:
+			return None;
+		
+		CellClass = getattr(cell, name, None);
+		
+		if not CellClass:
+			raise ValueError('INVALID_CELL: ', name);
+			
+		if not issubclass(CellClass, cell.Cell):
+			raise ValueError('ISNOT_A_CELL: ', name);
+			
+
+		NewCell = CellClass(self, bornPos);
+		NewCell.pos = self.transform(  bornPos['x'], bornPos['y'], NewCell  );
+		
+		
+		self.cells += [NewCell];
+		
+		return NewCell;
+		
+	def getCells(self, **options):
+		live = options.get('live');
+	
+		cells = [];
+		for c in self.cells:
+			if live is None or c.soul.is_alive() == live:
+				cells += [c];
+				
+		return cells;
+		
 	
 		
 	#Get in some direction!
@@ -126,43 +187,12 @@ class Env:
 		directions	= [(1,0),(-1,0),(0,1),(0,-1),(1,1),(-1,-1),(-1,1),(1,-1)]
 		round		= 0;
 		
-		CurrentX = x;
-		CurrentY = y;
 		CurrentDirections = [];
 		
 		while True:
-			
-				
+		
 			Size = self.GetEnvSize();
 			Total = Size['x'] * Size['y'];
-			
-			if tryCount > Total:
-				break;
-			
-			if CurrentX < 0:
-				CurrentX = 0;
-				
-			if CurrentX > Size['x']:
-				CurrentX = Size['x'];
-			
-			if CurrentY < 0:
-				CurrentY = 0;
-				
-			if CurrentY > Size['y']:
-				CurrentY = Size['y'];
-				
-			#print('Try get from x:%s y:%s count:%s try:%s count:%s' %(CurrentX,CurrentY,count, tryCount, Total))
-			p = self.get(CurrentX,CurrentY);
-			tryCount += 1;
-			
-			
-			if not p is None:
-				count -= 1;
-				got += [p];
-				
-			if count == 0:
-				break;
-				
 			
 			#Have directions in current round?
 			if not CurrentDirections:
@@ -180,14 +210,44 @@ class Env:
 			CurrentX = x + xNext;
 			CurrentY = y + yNext;
 			
+			if tryCount > Total:
+				break;
 			
+			if CurrentX < 0:
+				CurrentX = 0;
+				
+			if CurrentX > Size['x']:
+				CurrentX = Size['x'];
+			
+			if CurrentY < 0:
+				CurrentY = 0;
+				
+			if CurrentY > Size['y']:
+				CurrentY = Size['y'];
+				
+			
+			if CurrentX != x or CurrentY != y:	
+				#print('Try get from x:%s y:%s count:%s try:%s count:%s' %(CurrentX,CurrentY,count, tryCount, Total))
+				p = self.get(CurrentX,CurrentY);
+			else:
+				p = None;
+				
+			tryCount += 1;
+			
+			
+			if not p is None:
+				count -= 1;
+				got += [p];
+				
+			if count == 0:
+				break;
+				
 			
 			
 		return got;
 
 		
 
-	
-		
+
 		
 	
