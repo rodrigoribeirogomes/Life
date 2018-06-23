@@ -4,6 +4,21 @@ import time
 import random
 import traceback;
 
+STATS = {
+	 'Food'		: 0
+	,'predator'	: 0
+	,'relationships': 0
+	,'judge': 0
+	,'love': 0
+	,'borns': 0
+	,'sex': 0
+	,'LastSex': ""
+}
+
+MOVE_LOCK = threading.Lock();
+
+def getStats():
+	return STATS;
 
 class Cell:
 
@@ -15,12 +30,25 @@ class Cell:
 		self.died	 = False;
 		self.respiration = 0;
 		
+		self.emotions = [];
+		self.loadEmotions();
+		
 		self.ex = None;
 		self.soul = threading.Thread(target = self.born);
 		self.soul.setDaemon(True);
-		self.soul.start();
 		
 	
+	def loadEmotions(self):
+		for m in dir(self):
+			if m.startswith('emotion_'):
+				STATS[  m.replace('emotion_','') ] = 0
+				self.emotions += [{
+						'dna'		: getattr(self, m)
+						,'benefit'	: 1
+						,'UseCount'	: 0
+					}]
+			
+			
 	def born(self):
 		self.LifeCycle();
 		
@@ -31,6 +59,7 @@ class Cell:
 		else:
 			maxTries = self.life % self.respiration + 1
 	
+		self.act('LastTries', maxTries);
 		i = self.env.getNext( self.pos['x'], self.pos['y'], 1, maxTries = maxTries );
 		return i;
 		
@@ -53,35 +82,75 @@ class Cell:
 	def act(self, a, v):
 		self.actions[a] = v
 		
-		
 	def produce(self, predator):
 		
-		if type(predator) == Cell:
-			self.env.addCell(name = 'Air');
-	
 		return self.life * 0.2;
 		
+	def emotion_predator( self, partner, factor = 1.1 ):
+		AmountFood = int(self.produce(partner) * factor);
+		partner.life -= AmountFood;
+		
+		AmountFood -= self.life;
+		
+		return AmountFood;
+		
+		
+	def emotion_judge(self, partner, factor = 2):
+		partnerContribution = partner.life/factor;
+		meContribution = self.life/factor;
+		
+		newPartnerLife = partner.life - partnerContribution + meContribution;
+		newMeLife = self.life - meContribution + partnerContribution;
+		
+		self.life = newMeLife;
+		AmountFood = - meContribution + partnerContribution;
+		
+		return AmountFood;
+		
+	def emotion_love(self, partner, factor = 0.2):
+		amountLife = int(self.life * factor);
+		FoodAmount = -amountLife;
+		
+		if str(self) == str(partner):
+			STATS['sex'] += 1;
+			STATS['LastSex'] = type(self).__name__;
+
+			if int(self.life + partner.life) % 2  == 0:
+				b = self.env.addCell( name = type(self).__name__ );
+				FoodAmount = 1;
+
+				if b:
+					FoodAmount *= 2;
+					STATS['borns'] += 1;
+				
+		self.life -= amountLife;
+		partner.life += amountLife;
+		
+		return FoodAmount;
+		
+		
 	def move(self, x = None, y = None):
-	
-		randomPos = self.env.randomPos(x,y);
-		x = randomPos['x'];
-		y = randomPos['y'];
-		
-		dest = self.env.get(x,y);
-		
-		if not dest is None:
-			return;
+		with MOVE_LOCK:
+
+			randomPos = self.env.randomPos(x,y);
+			x = randomPos['x'];
+			y = randomPos['y'];
 			
-		CurrentPos = self.pos;
-		currx = self.pos['x'];
-		curry = self.pos['y'];
-		
-		self.env.transform( currx, curry, None,  force = True  );
-		NewPos = self.env.transform( x, y, self  );
-		
-		if NewPos:
-			self.pos = NewPos;
-	
+			dest = self.env.get(x,y);
+			
+			if not dest is None:
+				return;
+				
+			CurrentPos = self.pos;
+			currx = self.pos['x'];
+			curry = self.pos['y'];
+			
+			self.env.exclude( currx, curry);
+			NewPos = self.env.transform( x, y, self  );
+			
+			if NewPos:
+				self.pos = NewPos;
+
 	
 	def __die(self):
 		CurrentPos = self.pos;
@@ -93,6 +162,8 @@ class Cell:
 		
 	def LifeCycle(self):
 		try: 
+			
+		
 			while True:
 			
 				if self.life <= 0:
@@ -106,28 +177,54 @@ class Cell:
 					food = -1 * max(1, int(self.life * 0.1 ));
 				else:
 					for i in TheInput:
-						try:
-							if issubclass(type(i), Cell):
-								if i == self:
-									self.act('SelfInput', True);
-									food -= int(self.life * 0.1);
-								else:
-									self.act('SelfInput', False);
-									total = int(i.produce(self));
-									
-									food += int(total * 1.1);
-									i.life -= total;
+						if issubclass(type(i), Cell):
+							if i == self:
+								self.act('SelfInput', True);
+								food -= int(self.life * 0.1);
 							else:
+								STATS['relationships'] += 1;
+								
+								self.act('SelfInput', False);
+								
+								#Access emotion in benefit order...
+								RankedEmotions = sorted(  self.emotions, key = lambda k: k['benefit'], reverse = True  );
+								
+								
+								for e in RankedEmotions:
+									if e['benefit'] <= 0:
+										continue;
+										
+									emotionDNA	= e['dna'];	
+									emotionName  = emotionDNA.__name__.replace('emotion_', '');
+									
+									produced 	= emotionDNA( i );
+									
+									if not produced is None:
+										food += produced;
+										
+									if produced is None:
+										benefit = 0;
+									else:
+										benefit = produced;
+										
+									e['benefit'] += benefit;
+									e['UseCount'] += 1;
+									self.act('LastEmotion',  '%s:%s' %( emotionDNA.__name__, e['benefit'] ) );
+									STATS[ emotionName ] += 1;
+										
+						else:
+							try:
 								food += int(i);
-						except:
-							food += 0;
+							except:
+								food += 0;
+
 				
-				food = int(food);
+				food = food * 0.4;
 				self.act('Food', food);
 				self.life += food;
 				
 				if food > 0:
-					faeces = max(1,int(food * 0.4));
+					faeces = max(1,int(food * 0.6));
 				else:
 					faeces = None;
 				
@@ -137,7 +234,7 @@ class Cell:
 				self.respiration += 1;
 				self.act('R', self.respiration);
 				
-				if self.respiration % 10 == 0 and food <= 0:
+				if food <= 0:
 					self.move();
 				
 				time.sleep(0.1);

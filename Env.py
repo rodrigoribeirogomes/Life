@@ -3,6 +3,7 @@ import random
 import cell
 from operator import xor
 import traceback
+import threading;
 
 def expandList(l, newSize, default = None):
 	current = len(l);
@@ -27,6 +28,7 @@ class Matrix:
 	def __init__(self):
 		self.__matrix = [] * 0;
 		self.__size = {'x':0, 'y':0};
+		self.TransformLock = threading.Lock();
 		
 	#Get a random position on env...
 	def randomPos(self, x = None, y = None):
@@ -49,7 +51,6 @@ class Matrix:
 		
 	#Nothing creates, nothing destroyes, all transforms!
 	def  transform(self, x = None, y = None, e = None, **options):
-	
 		randomPos = self.randomPos(x, y);
 		x = randomPos['x']
 		y = randomPos['y']
@@ -73,8 +74,7 @@ class Matrix:
 		#Get the specified slot!
 		YSlot = self.__matrix[y];
 		YSlot[x] = e;
-		
-
+	
 		
 		return {'x':x,'y':y,'e':e};
 
@@ -97,22 +97,27 @@ class Env:
 		self.__env = Matrix();
 		self.__env.transform(x, y, e,default = e);
 		self.cells = [];
+		self.GetLock = threading.Lock();
+		self.TransformLock = threading.Lock();
 		
 	def exclude(self, x, y):
-		self.__env.transform(x,y, None);
+		x = self.__env.transform(x,y, None);
+
 		
 	def randomPos(self, x, y):
 		return self.__env.randomPos(x,y);
 		
 	def transform(self, x = None, y = None, e = None, force = False):
-		pos = self.__env.randomPos(x,y);
-		c = self.__env.get(pos['x'],pos['y']);
-		
-		if isinstance(c, cell.Cell) and not force:
-			return None;
+		with self.TransformLock:
+			pos = self.__env.randomPos(x,y);
+			c = self.__env.get(pos['x'],pos['y']);
 			
-		
-		return self.__env.transform(pos['x'],pos['y'],e);
+			if isinstance(c, cell.Cell) and not force:
+				ret =  None;
+			else:
+				ret = self.__env.transform(pos['x'],pos['y'],e);
+				
+		return ret;
 		
 	def GetMatrix(self):
 		return self.__env;
@@ -124,8 +129,10 @@ class Env:
 	#Get some particle from env!
 	#Env will empty the place
 	def get(self, x, y):
-		p = self.__env.get(x, y);
-		self.transform(x, y, None);
+		with self.GetLock:
+			p = self.__env.get(x, y);
+			self.transform(x, y, None);
+			
 		return p;
 		
 	#Insert some particle in env!
@@ -166,6 +173,7 @@ class Env:
 		if NewPos:
 			NewCell.pos = NewPos;
 			self.cells += [NewCell];
+			NewCell.soul.start();
 			return NewCell;
 		else:
 			return None;
