@@ -113,11 +113,10 @@ class Env:
 			c = self.__env.get(pos['x'],pos['y']);
 			
 			if isinstance(c, cell.Cell) and not force:
-				ret =  None;
-			else:
-				ret = self.__env.transform(pos['x'],pos['y'],e);
-				
-		return ret;
+				return None;
+			
+			return self.__env.transform(pos['x'],pos['y'],e);
+
 		
 	def GetMatrix(self):
 		return self.__env;

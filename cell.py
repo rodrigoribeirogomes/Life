@@ -228,8 +228,21 @@ class Cell:
 				else:
 					faeces = None;
 				
-				self.act('Feaces', faeces);					
-				self.output( faeces  );
+				self.act('Feaces', faeces);		
+
+				
+				#Try output up die...
+				while True and not faeces is None and self.life:
+				
+					r = self.output(faeces);
+					
+					if r:
+						break;
+						
+					self.life -= faeces;
+					
+				
+				
 				
 				self.respiration += 1;
 				self.act('R', self.respiration);
