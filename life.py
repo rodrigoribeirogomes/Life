@@ -62,4 +62,4 @@ while True:
 lives  = e.getCells(live = False);
 
 for x in lives:
-	print('Cells died. Ex: ', x.ex, 'life: ', x.life);
+	print('Cells died. Ex: ', x.ex, 'life: ', x.life, 'log', x.logentries);

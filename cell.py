@@ -15,10 +15,21 @@ STATS = {
 	,'LastSex': ""
 }
 
-MOVE_LOCK = threading.Lock();
+MOVE_LOCK 	= threading.Lock();
+STATS_LOCK	= threading.Lock();
 
 def getStats():
 	return STATS;
+	
+def setStats(name, value = None):
+	with STATS_LOCK:
+		if name not in STATS:
+			STATS[name] = 0;
+			
+		if value is None:
+			value = STATS[name] + 1;
+			
+		STATS[name] = value;
 
 class Cell:
 
@@ -29,6 +40,7 @@ class Cell:
 		self.actions = {};
 		self.died	 = False;
 		self.respiration = 0;
+		self.logentries	 = []
 		
 		self.emotions = [];
 		self.loadEmotions();
@@ -41,13 +53,14 @@ class Cell:
 	def loadEmotions(self):
 		for m in dir(self):
 			if m.startswith('emotion_'):
-				STATS[  m.replace('emotion_','') ] = 0
 				self.emotions += [{
 						'dna'		: getattr(self, m)
 						,'benefit'	: 1
 						,'UseCount'	: 0
 					}]
 			
+	def log(self, d):
+		self.logentries += [d];
 			
 	def born(self):
 		self.LifeCycle();
@@ -112,27 +125,53 @@ class Cell:
 		FoodAmount = -amountLife;
 		
 		if str(self) == str(partner):
-			STATS['sex'] += 1;
-			STATS['LastSex'] = type(self).__name__;
-
+			setStats('sex');
+			setStats('LastSex', type(self).__name__);
+			
 			if int(self.life + partner.life) % 2  == 0:
 				b = self.env.addCell( name = type(self).__name__ );
 				FoodAmount = 1;
 
 				if b:
 					FoodAmount *= 2;
-					STATS['borns'] += 1;
+					setStats('borns');
 				
 		self.life -= amountLife;
 		partner.life += amountLife;
 		
 		return FoodAmount;
 		
+	def getDigits(self, count = 1):
+		t = [];
+		
+		rawDigitsLife =  str(self.life).replace('.','').replace('-','')
+		
+		for i in range(count):
+			if not rawDigitsLife:
+			r = random.choice(rawDigitsLife);
+				= rawDigitsLife.replace(r, '');
+			
+			if not r:
+				r = '0';
+			
+			t += [int(r)]
+			
+		return t;
+		
+		
 		
 	def move(self, x = None, y = None):
 		with MOVE_LOCK:
-
-			randomPos = self.env.randomPos(x,y);
+			rd = self.getDigits(2);
+			
+			if rd[0] == rd[1]*2:
+				self.log('can expand: '+str(rd));
+				expand = True
+			else:	
+				expand = False;
+			
+			
+			randomPos = self.env.randomPos(x,y, expand = expand);
 			x = randomPos['x'];
 			y = randomPos['y'];
 			
@@ -210,7 +249,7 @@ class Cell:
 									e['benefit'] += benefit;
 									e['UseCount'] += 1;
 									self.act('LastEmotion',  '%s:%s' %( emotionDNA.__name__, e['benefit'] ) );
-									STATS[ emotionName ] += 1;
+									setStats(emotionName);
 										
 						else:
 							try:
