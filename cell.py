@@ -3,6 +3,8 @@ import threading;
 import time
 import random
 import traceback;
+import re
+import multiprocessing;
 
 STATS = {
 	 'Food'		: 0
@@ -17,6 +19,9 @@ STATS = {
 
 MOVE_LOCK 	= threading.Lock();
 STATS_LOCK	= threading.Lock();
+
+NODIGITS_REGEX = re.compile('[^0-9]');
+LIFE_SEMAPHORE = threading.Semaphore( multiprocessing.cpu_count() );
 
 def getStats():
 	return STATS;
@@ -55,7 +60,7 @@ class Cell:
 			if m.startswith('emotion_'):
 				self.emotions += [{
 						'dna'		: getattr(self, m)
-						,'benefit'	: 1
+						,'benefit'	: 1.0
 						,'UseCount'	: 0
 					}]
 			
@@ -97,20 +102,20 @@ class Cell:
 		
 	def produce(self, predator):
 		
-		return self.life * 0.2;
+		return self.life * self.getSeed();
 		
-	def emotion_predator( self, partner, factor = 1.1 ):
-		AmountFood = int(self.produce(partner) * factor);
+	def emotion_predator( self, partner):
+		AmountFood = partner.getSeed();
 		partner.life -= AmountFood;
 		
-		AmountFood -= self.life;
+		AmountFood = self.life + AmountFood - partner.life;
 		
 		return AmountFood;
 		
 		
-	def emotion_judge(self, partner, factor = 2):
-		partnerContribution = partner.life/factor;
-		meContribution = self.life/factor;
+	def emotion_judge(self, partner):
+		partnerContribution = partner.getSeed();
+		meContribution = self.getSeed();
 		
 		newPartnerLife = partner.life - partnerContribution + meContribution;
 		newMeLife = self.life - meContribution + partnerContribution;
@@ -120,20 +125,20 @@ class Cell:
 		
 		return AmountFood;
 		
-	def emotion_love(self, partner, factor = 0.2):
-		amountLife = int(self.life * factor);
+	def emotion_love(self, partner):
+		amountLife = self.getSeed();
 		FoodAmount = -amountLife;
 		
 		if str(self) == str(partner):
 			setStats('sex');
 			setStats('LastSex', type(self).__name__);
 			
-			if int(self.life + partner.life) % 2  == 0:
+			if int(self.life) * self.getSeed() == partner.life * partner.getSeed():
 				b = self.env.addCell( name = type(self).__name__ );
-				FoodAmount = 1;
+				FoodAmount = self.getSeed();
 
 				if b:
-					FoodAmount *= 2;
+					FoodAmount += self.getSeed();
 					setStats('borns');
 				
 		self.life -= amountLife;
@@ -144,32 +149,37 @@ class Cell:
 	def getDigits(self, count = 1):
 		t = [];
 		
-		rawDigitsLife =  str(self.life).replace('.','').replace('-','')
+		rawDigitsLife =  NODIGITS_REGEX.sub(  str(self.life), '' );
 		
-		for i in range(count):
-			if not rawDigitsLife:
+		if not rawDigitsLife:
+			rawDigitsLife = ['0'];
+		
+		if count == 0:
+			count = len(rawDigitsLife);
+		
+		for i in range(count):				
 			r = random.choice(rawDigitsLife);
-				= rawDigitsLife.replace(r, '');
-			
-			if not r:
-				r = '0';
 			
 			t += [int(r)]
 			
 		return t;
 		
+	def getSeed(self):
+		allDigits 	= self.getDigits(0);
+		digitCount	= len(allDigits);
+		firstDigit	= allDigits[0];
+		return min(firstDigit,digitCount)/digitCount;
 		
 		
 	def move(self, x = None, y = None):
 		with MOVE_LOCK:
-			rd = self.getDigits(2);
+			rd = self.getDigits(0);
 			
-			if rd[0] == rd[1]*2:
-				self.log('can expand: '+str(rd));
-				expand = True
-			else:	
-				expand = False;
-			
+			expand = True;
+			for i in rd:
+				if i != rd[0]:
+					expand = False;
+					break;
 			
 			randomPos = self.env.randomPos(x,y, expand = expand);
 			x = randomPos['x'];
@@ -202,94 +212,90 @@ class Cell:
 	def LifeCycle(self):
 		try: 
 			
-		
-			while True:
-			
-				if self.life <= 0:
-					raise ValueError('DIED');
-					
-				TheInput = self.input();
-				self.act('Inputing', TheInput);
-				food = 0;
-				
-				if not TheInput:
-					food = -1 * max(1, int(self.life * 0.1 ));
-				else:
-					for i in TheInput:
-						if issubclass(type(i), Cell):
-							if i == self:
-								self.act('SelfInput', True);
-								food -= int(self.life * 0.1);
-							else:
-								STATS['relationships'] += 1;
-								
-								self.act('SelfInput', False);
-								
-								#Access emotion in benefit order...
-								RankedEmotions = sorted(  self.emotions, key = lambda k: k['benefit'], reverse = True  );
-								
-								
-								for e in RankedEmotions:
-									if e['benefit'] <= 0:
-										continue;
-										
-									emotionDNA	= e['dna'];	
-									emotionName  = emotionDNA.__name__.replace('emotion_', '');
-									
-									produced 	= emotionDNA( i );
-									
-									if not produced is None:
-										food += produced;
-										
-									if produced is None:
-										benefit = 0;
-									else:
-										benefit = produced;
-										
-									e['benefit'] += benefit;
-									e['UseCount'] += 1;
-									self.act('LastEmotion',  '%s:%s' %( emotionDNA.__name__, e['benefit'] ) );
-									setStats(emotionName);
-										
-						else:
-							try:
-								food += int(i);
-							except:
-								food += 0;
 
-				
-				food = food * 0.4;
-				self.act('Food', food);
-				self.life += food;
-				
-				if food > 0:
-					faeces = max(1,int(food * 0.6));
-				else:
-					faeces = None;
-				
-				self.act('Feaces', faeces);		
-
-				
-				#Try output up die...
-				while True and not faeces is None and self.life:
-				
-					r = self.output(faeces);
-					
-					if r:
-						break;
+			while True:	
+				with LIFE_SEMAPHORE:
+					if self.life <= 0:
+						raise ValueError('DIED');
 						
-					self.life -= faeces;
+					TheInput = self.input();
+					self.act('Inputing', TheInput);
+					food = 0;
+					seed = self.getSeed();
 					
+					if not TheInput:
+						food = -1;
+					else:
+						for i in TheInput:
+							if issubclass(type(i), Cell):
+								if i == self:
+									self.act('SelfInput', True);
+									food -= int(self.life * seed);
+								else:
+									setStats('relationships');
+									
+									self.act('SelfInput', False);
+									
+									#Access emotion in benefit order...
+									RankedEmotions = sorted(  self.emotions, key = lambda k: k['benefit'], reverse = True  );
+									
+									
+									for e in RankedEmotions:
+										if e['benefit'] <= 0:
+											continue;
+											
+										emotionDNA	= e['dna'];	
+										emotionName  = emotionDNA.__name__.replace('emotion_', '');
+										
+										produced 	= emotionDNA( i );
+										
+										if not produced is None:
+											food += produced;
+											
+										if produced is None:
+											benefit = 0;
+										else:
+											benefit = produced;
+											
+										e['benefit'] += benefit;
+										e['UseCount'] += 1;
+										self.act('LastEmotion',  '%s:%s' %( emotionDNA.__name__, e['benefit'] ) );
+										setStats(emotionName);
+											
+							else:
+								try:
+									food += int(i);
+								except:
+									food += 0;
+
+					
+					foodSeed 	= self.getSeed();
+					food = food * foodSeed;
+					self.act('Food', food);
+					self.life += food;
+					
+					if food > 0:
+						faeces = max(1,int(food *  (1 - foodSeed) ));
+					else:
+						faeces = None;
+					
+					self.act('Feaces', faeces);		
+
+					#Try output up die...
+					while True and not faeces is None and self.life:
+						r = self.output(faeces);
+						if r:
+							break;
+						self.life -= 1;
+					
+					
+					self.respiration += int(self.getSeed() * 10);
+					self.act('R', self.respiration);
+					
+					if food <= 0:
+						self.move();
 				
-				
-				
-				self.respiration += 1;
-				self.act('R', self.respiration);
-				
-				if food <= 0:
-					self.move();
-				
-				time.sleep(0.1);
+				time.sleep(0);
 				
 		except BaseException as e:
 			self.ex = traceback.format_exc();

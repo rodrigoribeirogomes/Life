@@ -5,13 +5,18 @@ import time
 import os
 from traceback import format_tb;
 import cell
+import shutil
 
 print('Creating env...');
-e = Env(5,5);
+e = Env(2,2);
+
+consoleSize = shutil.get_terminal_size();
+e.setMaxSize(  2, 2 );
 
 print('Creating first cells...');
 c = e.addCell(0,0);
 c = e.addCell(0,1);
+e.transform(1,1,1);
 
 
 #c = e.addCell(name = 'Venen');
@@ -39,6 +44,7 @@ while True:
 	dieds  = e.getCells(live = False);
 	
 	print(  god.PrintEnv(e) );
+	print( consoleSize );
 	
 	PrintStats();
 	

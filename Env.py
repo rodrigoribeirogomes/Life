@@ -31,11 +31,11 @@ class Matrix:
 		self.TransformLock = threading.Lock();
 		
 	#Get a random position on env...
-	def randomPos(self, x = None, y = None, expand = False):
+	def randomPos(self, x = None, y = None, expand = False, maxSize = None):
 	
 		maxX = self.__size['x'];
 		maxY = self.__size['y'];
-	
+		
 		if expand:
 			maxX += 1
 			maxY += 1
@@ -45,6 +45,17 @@ class Matrix:
 			
 		if y is None:
 			y = random.randint(0,  maxY )
+			
+		if maxSize:
+			maxSizeX = maxSize[0]
+			maxSizeY = maxSize[1]
+			
+			if x > maxSizeX:
+				x = min(maxX,maxSizeX);
+				
+			if y > maxSizeY:
+				y = min(maxY,maxSizeY);
+				
 			
 		if x > maxX:
 			self.__size['x'] = x
@@ -106,13 +117,18 @@ class Env:
 		self.cells = [];
 		self.GetLock = threading.Lock();
 		self.TransformLock = threading.Lock();
+		self.__maxsize		= None;
 		
 	def exclude(self, x, y):
 		x = self.__env.transform(x,y, None);
 
 		
+	def setMaxSize(self, x,y):
+		self.__maxsize = (x,y);
+		
 	def randomPos(self, x, y, expand = False):
-		return self.__env.randomPos(x,y, expand = expand);
+		
+		return self.__env.randomPos(x,y, expand = expand, maxSize = self.__maxsize);
 		
 	def transform(self, x = None, y = None, e = None, force = False):
 		with self.TransformLock:
